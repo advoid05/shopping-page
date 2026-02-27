@@ -6,7 +6,6 @@ const CART_KEY = "cartIds";
 const LIKED_KEY = "likedStatus";
 const HISTORY_KEY = "browseHistory";
 
-// Helper function for Pascal Case (e.g., "men's clothing" -> "Men's Clothing")
 const toPascalCase = (str) => {
   if (!str) return "";
   return str
@@ -15,13 +14,125 @@ const toPascalCase = (str) => {
     .join(" ");
 };
 
+const formatINR = (price) =>
+  Number(price).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    style: "currency",
+    currency: "INR",
+  });
+
+function ProductCard({
+  product,
+  mode, // "catalog" | "detail" | "cart" | "liked" | "history"
+  likedStatus,
+  inCart,
+  onLike,
+  onDislike,
+  onToggleCart,
+  onRemoveCart,
+  onOpenProduct,
+  viewedAt, // for history
+}) {
+  const status = likedStatus[product.id];
+
+  return (
+    <div className="product-card">
+      <div className="product-card-header">
+        {product.image && (
+          <img
+            src={product.image}
+            alt={product.title}
+            className="product-image"
+          />
+        )}
+        {inCart && mode !== "cart" && (
+          <span className="wishlist-badge">In Cart</span>
+        )}
+      </div>
+
+      <div className="product-info">
+        <h2 className="product-title">{product.title}</h2>
+        <p className="product-category">{toPascalCase(product.category)}</p>
+        <p className="product-price">{formatINR(product.price)}</p>
+
+        {mode === "detail" && product.rating && (
+          <p className="product-rating">
+            Rating: {product.rating.rate} ({product.rating.count} reviews)
+          </p>
+        )}
+
+        {mode === "detail" && (
+          <p className="product-description">{product.description}</p>
+        )}
+
+        {mode === "history" && viewedAt && (
+          <p className="product-rating">
+            Viewed: {new Date(viewedAt).toLocaleString()}
+          </p>
+        )}
+      </div>
+
+      <div className="product-actions">
+        {(mode === "catalog" || mode === "liked" || mode === "history") && (
+          <button
+            className="btn btn-details"
+            onClick={() => onOpenProduct(product.id)}
+          >
+            Visit Product
+          </button>
+        )}
+
+        {mode === "cart" && (
+          <>
+            <button
+              className="btn btn-details"
+              onClick={() => onOpenProduct(product.id)}
+            >
+              View Details
+            </button>
+            <button
+              className="btn btn-remove-cart"
+              onClick={() => onRemoveCart(product.id)}
+            >
+              Remove from Cart
+            </button>
+          </>
+        )}
+
+        {mode === "detail" && (
+          <>
+            <button
+              className={`btn btn-like ${status === "like" ? "active" : ""}`}
+              onClick={() => onLike(product.id)}
+            >
+              {status === "like" ? "Liked" : "Like"}
+            </button>
+            <button
+              className={`btn btn-dislike ${status === "dislike" ? "active" : ""}`}
+              onClick={() => onDislike(product.id)}
+            >
+              {status === "dislike" ? "Disliked" : "Dislike"}
+            </button>
+            <button
+              className={`btn btn-wishlist ${inCart ? "active" : ""}`}
+              onClick={() => onToggleCart(product.id)}
+            >
+              {inCart ? "Remove from Cart" : "Add to Cart"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [likedStatus, setLikedStatus] = useState(() => {
-    if (typeof window === "undefined") return {};
     try {
       const stored = localStorage.getItem(LIKED_KEY);
       return stored ? JSON.parse(stored) : {};
@@ -29,8 +140,8 @@ function App() {
       return {};
     }
   });
+
   const [cartIds, setCartIds] = useState(() => {
-    if (typeof window === "undefined") return [];
     try {
       const stored = localStorage.getItem(CART_KEY);
       return stored ? JSON.parse(stored) : [];
@@ -38,8 +149,8 @@ function App() {
       return [];
     }
   });
+
   const [browseHistory, setBrowseHistory] = useState(() => {
-    if (typeof window === "undefined") return [];
     try {
       const stored = localStorage.getItem(HISTORY_KEY);
       return stored ? JSON.parse(stored) : [];
@@ -48,18 +159,13 @@ function App() {
     }
   });
 
-  const searchParams =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : null;
-
-  const isCartView = searchParams?.get("view") === "cart";
-  const isLikedView = searchParams?.get("view") === "liked";
-  const isProductView = searchParams?.get("view") === "product";
-  const isHistoryView = searchParams?.get("view") === "history";
-  const productIdParam = searchParams?.get("id");
-  const isCatalogView =
-    !isCartView && !isLikedView && !isProductView && !isHistoryView;
+  const searchParams = new URLSearchParams(window.location.search);
+  const isCartView = searchParams.get("view") === "cart";
+  const isLikedView = searchParams.get("view") === "liked";
+  const isProductView = searchParams.get("view") === "product";
+  const isHistoryView = searchParams.get("view") === "history";
+  const productIdParam = searchParams.get("id");
+  const isCatalogView = !isCartView && !isLikedView && !isProductView && !isHistoryView;
 
   useEffect(() => {
     async function fetchProducts() {
@@ -80,171 +186,152 @@ function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(LIKED_KEY, JSON.stringify(likedStatus));
-    } catch (e) {
-      console.error("Storage error", e);
-    }
+    try { localStorage.setItem(LIKED_KEY, JSON.stringify(likedStatus)); } catch {}
   }, [likedStatus]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(CART_KEY, JSON.stringify(cartIds));
-    } catch (e) {
-      console.error("Storage error", e);
-    }
+    try { localStorage.setItem(CART_KEY, JSON.stringify(cartIds)); } catch {}
   }, [cartIds]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(browseHistory));
-    } catch (e) {
-      console.error("Storage error", e);
-    }
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(browseHistory)); } catch {}
   }, [browseHistory]);
 
-  const handleLike = (productId) => {
+  const handleLike = (id) =>
     setLikedStatus((prev) => ({
       ...prev,
-      [productId]: prev[productId] === "like" ? undefined : "like",
+      [id]: prev[id] === "like" ? undefined : "like",
     }));
-  };
 
-  const handleDislike = (productId) => {
+  const handleDislike = (id) =>
     setLikedStatus((prev) => ({
       ...prev,
-      [productId]: prev[productId] === "dislike" ? undefined : "dislike",
+      [id]: prev[id] === "dislike" ? undefined : "dislike",
     }));
-  };
 
-  const toggleCart = (productId) => {
+  const toggleCart = (id) =>
     setCartIds((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+
+  const removeFromCart = (id) =>
+    setCartIds((prev) => prev.filter((x) => x !== id));
+
+  const goHome = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("view");
+    url.searchParams.delete("id");
+    window.location.href = url.toString();
   };
 
-  const openCartTab = () => {
-    if (typeof window === "undefined") return;
+  const openInNewTab = (params) => {
     const url = new URL(window.location.href);
-    url.searchParams.set("view", "cart");
-    url.searchParams.delete("id");
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === null) url.searchParams.delete(k);
+      else url.searchParams.set(k, v);
+    });
     window.open(url.toString(), "_blank", "noopener,noreferrer");
   };
 
-  const openLikedTab = () => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", "liked");
-    url.searchParams.delete("id");
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-  };
-
-  const openHistoryTab = () => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", "history");
-    url.searchParams.delete("id");
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-  };
-
-  const openProductTab = (productId) => {
-    if (typeof window === "undefined") return;
+  const openProductTab = (id) => {
     setBrowseHistory((prev) => {
-      const next = [
-        { id: productId, ts: Date.now() },
-        ...(Array.isArray(prev) ? prev : []),
-      ];
+      const next = [{ id, ts: Date.now() }, ...(Array.isArray(prev) ? prev : [])];
       return next.slice(0, 200);
     });
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", "product");
-    url.searchParams.set("id", String(productId));
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
+    openInNewTab({ view: "product", id: String(id) });
   };
-
-  const visibleProducts =
-    isProductView && productIdParam
-      ? products.filter((p) => String(p.id) === String(productIdParam))
-      : isCartView
-      ? products.filter((p) => cartIds.includes(p.id))
-      : isLikedView
-      ? products.filter((p) => likedStatus[p.id] === "like")
-      : isHistoryView
-      ? products.filter((p) =>
-          browseHistory.some((h) => String(h.id) === String(p.id))
-        )
-      : products;
 
   const categories = [
     "All",
     ...Array.from(new Set(products.map((p) => p.category))).sort(),
   ];
 
+  const visibleProducts = isProductView && productIdParam
+    ? products.filter((p) => String(p.id) === String(productIdParam))
+    : isCartView
+    ? products.filter((p) => cartIds.includes(p.id))
+    : isLikedView
+    ? products.filter((p) => likedStatus[p.id] === "like")
+    : isHistoryView
+    ? products.filter((p) =>
+        browseHistory.some((h) => String(h.id) === String(p.id))
+      )
+    : products;
+
   const displayedProducts = visibleProducts.filter((p) =>
     selectedCategory === "All" ? true : p.category === selectedCategory
   );
 
-  const likedCount = Object.values(likedStatus).filter(
-    (status) => status === "like"
-  ).length;
-
-  const displayedHistoryEntries = (Array.isArray(browseHistory)
-    ? browseHistory
-    : []
-  )
+  const displayedHistoryEntries = (Array.isArray(browseHistory) ? browseHistory : [])
     .map((entry) => {
       const product = products.find((p) => String(p.id) === String(entry.id));
       return product ? { ...entry, product } : null;
     })
     .filter(Boolean)
     .filter((entry) =>
-      selectedCategory === "All"
-        ? true
-        : entry.product.category === selectedCategory
+      selectedCategory === "All" ? true : entry.product.category === selectedCategory
     );
 
   const clearHistory = () => {
     setBrowseHistory([]);
-    if (typeof window !== "undefined") {
-      window.location.reload();
-    }
+    window.location.reload();
   };
+
+  const cardMode = isCartView
+    ? "cart"
+    : isLikedView
+    ? "liked"
+    : isProductView
+    ? "detail"
+    : isHistoryView
+    ? "history"
+    : "catalog";
+
+  const pageTitle = isHistoryView
+    ? "Browsing History"
+    : isProductView
+    ? "Product Details"
+    : isCartView
+    ? "My Cart"
+    : isLikedView
+    ? "Liked Products"
+    : "Product Catalog";
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>
-          {isHistoryView
-            ? "Browsing History"
-            : isProductView
-            ? "Product Details"
-            : isCartView
-            ? "My Cart"
-            : isLikedView
-            ? "Liked Products"
-            : "Product Catalog"}
-        </h1>
+        <h1>{pageTitle}</h1>
         <div className="header-actions">
+          <button className="btn btn-home" onClick={goHome}>
+            Home
+          </button>
           {!isCartView && (
-            <button className="btn btn-open-wishlist" onClick={openCartTab}>
-              Your Cart  
+            <button
+              className="btn btn-open-wishlist"
+              onClick={() => openInNewTab({ view: "cart", id: null })}
+            >
+              Your Cart
             </button>
           )}
           {!isLikedView && (
-            <button className="btn btn-open-wishlist" onClick={openLikedTab}>
-              Liked 
+            <button
+              className="btn btn-open-wishlist"
+              onClick={() => openInNewTab({ view: "liked", id: null })}
+            >
+              Liked
             </button>
           )}
           {isCatalogView && (
-            <button className="btn btn-open-wishlist" onClick={openHistoryTab}>
+            <button
+              className="btn btn-open-wishlist"
+              onClick={() => openInNewTab({ view: "history", id: null })}
+            >
               Your History
             </button>
           )}
           {isHistoryView && (
             <button className="btn btn-open-wishlist" onClick={clearHistory}>
-              Clear Browsing History
+              Clear History
             </button>
           )}
         </div>
@@ -255,177 +342,56 @@ function App() {
 
       {!loading && !error && (
         <nav className="category-filter">
-          {categories.map((category) => (
+          {categories.map((cat) => (
             <button
-              key={category}
-              className={`btn btn-category ${selectedCategory === category ? "active" : ""}`}
-              onClick={() => setSelectedCategory(category)}
+              key={cat}
+              className={`btn btn-category ${selectedCategory === cat ? "active" : ""}`}
+              onClick={() => setSelectedCategory(cat)}
             >
-              {category === "All" ? "All" : toPascalCase(category)}
+              {cat === "All" ? "All" : toPascalCase(cat)}
             </button>
           ))}
         </nav>
       )}
 
       {!loading && !error && isHistoryView && displayedHistoryEntries.length === 0 && (
-        <p>No browsing history yet. </p>
+        <p>No browsing history yet.</p>
       )}
-
       {!loading && !error && !isHistoryView && displayedProducts.length === 0 && (
         <p>No products to show.</p>
       )}
 
       <div className="products-grid">
         {isHistoryView
-          ? displayedHistoryEntries.map((entry, idx) => {
-              const product = entry.product;
-              return (
-                <div key={`${entry.id}-${entry.ts}-${idx}`} className="product-card">
-                  <div className="product-card-header">
-                    {product.image && (
-                      <img
-                        src={product.image}
-                        alt={product.title}
-                        className="product-image"
-                      />
-                    )}
-                  </div>
-
-                  <h2 className="product-title">{product.title}</h2>
-
-                  <p className="product-category">
-                    {toPascalCase(product.category)}
-                  </p>
-
-                  <p className="product-price">
-                    ₹
-                    {Number(product.price).toLocaleString("en-IN", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </p>
-
-                  <p className="product-rating">
-                    Viewed: {new Date(entry.ts).toLocaleString()}
-                  </p>
-
-                  <div className="product-actions">
-                    <button
-                      className="btn btn-details"
-                      onClick={() => openProductTab(product.id)}
-                    >
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          : displayedProducts.map((product) => {
-          const status = likedStatus[product.id];
-          const inCart = cartIds.includes(product.id);
-
-          // Catalog / list view: only image, type, price, and "View Details"
-          if (!isProductView) {
-            return (
-              <div key={product.id} className="product-card">
-                <div className="product-card-header">
-                  {product.image && (
-                    <img
-                      src={product.image}
-                      alt={product.title}
-                      className="product-image"
-                    />
-                  )}
-                </div>
-
-                <h2 className="product-title">{product.title}</h2>
-
-                <p className="product-category">
-                  {toPascalCase(product.category)}
-                </p>
-
-                <p className="product-price">
-                  ₹
-                  {Number(product.price).toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-
-                <div className="product-actions">
-                  <button
-                    className="btn btn-details"
-                    onClick={() => openProductTab(product.id)}
-                  >
-                    Visit Product
-                  </button>
-                </div>
-              </div>
-            );
-          }
-
-          // Product details view: full information, like/dislike, add to cart
-          return (
-            <div key={product.id} className="product-card">
-              <div className="product-card-header">
-                {product.image && (
-                  <img
-                    src={product.image}
-                    alt={product.title}
-                    className="product-image"
-                  />
-                )}
-                {inCart && <span className="wishlist-badge">In Cart</span>}
-              </div>
-
-              <h2 className="product-title">{product.title}</h2>
-
-              <p className="product-category">
-                {toPascalCase(product.category)}
-              </p>
-
-              <p className="product-price">
-                ₹
-                {Number(product.price).toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-
-              {product.rating && (
-                <p className="product-rating">
-                  Rating: {product.rating.rate} ({product.rating.count} reviews)
-                </p>
-              )}
-
-              <p className="product-description">{product.description}</p>
-
-              <div className="product-actions">
-                <button
-                  className={`btn btn-like ${
-                    status === "like" ? "active" : ""
-                  }`}
-                  onClick={() => handleLike(product.id)}
-                >
-                  {status === "like" ? "Liked" : "Like"}
-                </button>
-
-                <button
-                  className={`btn btn-dislike ${
-                    status === "dislike" ? "active" : ""
-                  }`}
-                  onClick={() => handleDislike(product.id)}
-                >
-                  {status === "dislike" ? "Disliked" : "Dislike"}
-                </button>
-
-                <button
-                  className={`btn btn-wishlist ${inCart ? "active" : ""}`}
-                  onClick={() => toggleCart(product.id)}
-                >
-                  {inCart ? "Remove from Cart" : "Add to Cart"}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+          ? displayedHistoryEntries.map((entry, idx) => (
+              <ProductCard
+                key={`${entry.id}-${entry.ts}-${idx}`}
+                product={entry.product}
+                mode="history"
+                likedStatus={likedStatus}
+                inCart={cartIds.includes(entry.product.id)}
+                onLike={handleLike}
+                onDislike={handleDislike}
+                onToggleCart={toggleCart}
+                onRemoveCart={removeFromCart}
+                onOpenProduct={openProductTab}
+                viewedAt={entry.ts}
+              />
+            ))
+          : displayedProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                mode={cardMode}
+                likedStatus={likedStatus}
+                inCart={cartIds.includes(product.id)}
+                onLike={handleLike}
+                onDislike={handleDislike}
+                onToggleCart={toggleCart}
+                onRemoveCart={removeFromCart}
+                onOpenProduct={openProductTab}
+              />
+            ))}
       </div>
     </div>
   );
